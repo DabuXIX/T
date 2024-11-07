@@ -1,0 +1,23 @@
+import tkinter as tk
+from tkinter import messagebox
+
+root = tk.Tk()
+
+# Define the Entry widget
+default_width = tk.Entry(root, width=10)
+default_width.grid(row=0, column=1, padx=5, pady=5)
+default_width.insert(0, "7")
+
+# Define a conversion function that uses default_width
+def start_conversion():
+    try:
+        width = int(default_width.get())
+        print("Width:", width)
+        messagebox.showinfo("Info", f"Width entered: {width}")
+    except Exception as e:
+        messagebox.showerror("Error", f"An error occurred: {e}")
+
+# Add a button to trigger the conversion function
+tk.Button(root, text="Convert", command=start_conversion).grid(row=1, column=1, padx=5, pady=20)
+
+root.mainloop()
