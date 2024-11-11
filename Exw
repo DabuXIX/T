@@ -1,0 +1,1 @@
+gcc ttf_bin_conv.c -o ttf_bin_conv -I "C:\Users\dbrown\AppData\Local\Programs\Python\Python313\include" -L "C:\Users\dbrown\AppData\Local\Programs\Python\Python313\libs" -lpython3.13 -mconsole
