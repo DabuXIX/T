@@ -1,0 +1,1 @@
+pyinstaller --onefile --add-data "<path to freetype DLLs or dependencies>;." --add-data "<path to numpy DLLs or dependencies>;." --add-data "<path to PIL DLLs or dependencies>;." --add-data "<path to tkinter DLLs or dependencies>;." your_cython_executable.exe
