@@ -1,82 +1,95 @@
-from PIL import Image
-
-# Load your bitmap as a grayscale image
-bitmap = Image.open("path_to_your_bitmap.png").convert("L")
-
-# Call the function with the forced height of 14 and max width of 7, saving to an XBM file
-xbm_data, width, height = bitmap_to_xbm_fixed_height(bitmap, forced_height=14, max_width=7, output_file_path="character.xbm")
-
-# Output results for verification
-print("XBM Data:", xbm_data)
-print("Width:", width)    # Should be 8 bits
-print("Height:", height)  # Forced height specified
-
-
-from PIL import Image
+from PIL import Image, ImageDraw, ImageFont
 import numpy as np
+import os
 
-def bitmap_to_xbm_fixed_height(bitmap, forced_height, max_width=7, threshold_value=128, output_file_path="output.xbm"):
+def ttf_to_xbm_combined(ttf_path, char_list, forced_height_1, forced_height_2, max_width=7, threshold_value=128, 
+                        output_file="output_combined.xbm", padding_top=0, bottom_padding_1=0, bottom_padding_2=0):
     """
-    Converts a PIL Image bitmap to XBM format with a forced height and a max width of 7 bits.
-    The result is padded to an 8-bit width for compatibility with the XBM format.
-    
+    Converts a list of characters from a TTF file to XBM format with two forced heights, a max width of 7 bits, 
+    and optional top and bottom padding for each height. All characters are saved in a single XBM file with comments.
+
     Parameters:
-    - bitmap: PIL Image object in grayscale format (mode 'L').
-    - forced_height: The desired fixed height for the output.
+    - ttf_path: Path to the TTF file.
+    - char_list: List of characters to process.
+    - forced_height_1: The desired fixed height for the first set of characters.
+    - forced_height_2: The desired fixed height for the second set of characters.
     - max_width: The maximum width for the character, capped at 7 bits.
     - threshold_value: Pixel intensity threshold for binarization.
-    - output_file_path: Path to save the XBM file.
+    - output_file: Path to the combined XBM file.
+    - padding_top: Number of padding rows to add to the top.
+    - bottom_padding_1: Number of padding rows to add to the bottom for `forced_height_1`.
+    - bottom_padding_2: Number of padding rows to add to the bottom for `forced_height_2`.
     """
-    # Convert the bitmap to grayscale if it isn’t already
-    if bitmap.mode != 'L':
-        bitmap = bitmap.convert('L')
-    
-    # Resize the bitmap to the forced height while maintaining aspect ratio for width
-    aspect_ratio = bitmap.width / bitmap.height
-    new_width = min(int(forced_height * aspect_ratio), max_width)  # Calculate width with max constraint
-    img_resized = bitmap.resize((new_width, forced_height), Image.Resampling.LANCZOS)
-    
-    # Convert resized image to binary (black-and-white) array based on the threshold
-    resized_array = np.array(img_resized)
-    binary_array = (resized_array > threshold_value).astype(np.uint8)
-    
-    # Create the padded array with an 8-bit width, even if the actual character width is less
-    padded_array = np.zeros((forced_height, 8), dtype=np.uint8)
-    start_col = (8 - new_width) // 2  # Center-align character in 8-bit width
-    
-    # Place the binary character bitmap in the center of the 8-bit padded array
-    padded_array[:, start_col:start_col + new_width] = binary_array[:, :new_width]
-    
-    # Initialize the XBM data list and convert each row to byte values
-    xbm_data = []
-    for row in padded_array:
-        byte_value = 0
-        for col in range(8):
-            # Set bit if pixel is on (value > 0)
-            if row[col] > 0:
-                byte_value |= (1 << (7 - col))
-        
-        # Append the byte to XBM data for each row
-        xbm_data.append(byte_value)
-    
-    # Write the XBM file
-    with open(output_file_path, "w") as f:
-        # XBM file header
-        f.write(f"#define {output_file_path.split('/')[-1].split('.')[0]}_width 8\n")
-        f.write(f"#define {output_file_path.split('/')[-1].split('.')[0]}_height {forced_height}\n")
-        f.write(f"static char {output_file_path.split('/')[-1].split('.')[0]}_bits[] = {{\n")
-        
-        # Write each byte in hexadecimal format, 12 bytes per line for readability
-        for i, byte in enumerate(xbm_data):
-            f.write(f"  0x{byte:02X}")
-            if i < len(xbm_data) - 1:
-                f.write(",")
-            if (i + 1) % 12 == 0:
-                f.write("\n")
-            else:
-                f.write(" ")
-        f.write("\n};\n")
+    # Load the font with an arbitrary size; we'll scale each character to the forced heights
+    font_size = max(forced_height_1, forced_height_2) * 2  # Starting font size; we'll resize to each forced height
+    font = ImageFont.truetype(ttf_path, font_size)
 
-    print(f"XBM file saved as {output_file_path}")
+    # Prepare the output file
+    with open(output_file, "w") as f:
+        # Write the initial XBM file header
+        f.write("# Combined XBM file with dual heights\n\n")
+        
+        for char in char_list:
+            for height, bottom_padding in [(forced_height_1, bottom_padding_1), (forced_height_2, bottom_padding_2)]:
+                # Calculate total height with padding for the current height configuration
+                total_height = height + padding_top + bottom_padding
+                
+                # Render the character onto a blank canvas
+                (width, actual_height), (offset_x, offset_y) = font.font.getsize(char)
+                image = Image.new('L', (width, actual_height), 0)  # Black canvas
+                draw = ImageDraw.Draw(image)
+                draw.text((-offset_x, -offset_y), char, font=font, fill=255)  # Render character in white
+                
+                # Resize the bitmap to the specified height while maintaining aspect ratio for width
+                aspect_ratio = image.width / image.height
+                new_width = min(int(height * aspect_ratio), max_width)  # Calculate width with max constraint
+                img_resized = image.resize((new_width, height), Image.Resampling.LANCZOS)
+                
+                # Convert resized image to binary (black-and-white) array based on the threshold
+                resized_array = np.array(img_resized)
+                binary_array = (resized_array > threshold_value).astype(np.uint8)
+                
+                # Create the padded array with an 8-bit width and the total height, even if the character width/height is less
+                padded_array = np.zeros((total_height, 8), dtype=np.uint8)
+                start_col = (8 - new_width) // 2  # Center-align character horizontally in 8-bit width
+                start_row = padding_top  # Start character drawing at the specified padding from the top
 
-    return xbm_data, 8, forced_height
+                # Place the binary character bitmap in the center of the padded array vertically and horizontally
+                padded_array[start_row:start_row + height, start_col:start_col + new_width] = binary_array[:, :new_width]
+                
+                # Initialize the XBM data list and convert each row to byte values
+                xbm_data = []
+                for row in padded_array:
+                    byte_value = 0
+                    for col in range(8):
+                        # Set bit if pixel is on (value > 0)
+                        if row[col] > 0:
+                            byte_value |= (1 << (7 - col))
+                    
+                    # Append the byte to XBM data for each row
+                    xbm_data.append(byte_value)
+
+                # Write the data for each character with comments for height and character
+                f.write(f"/* Character: '{char}', Height: {total_height} */\n")
+                f.write(f"#define {char}_width 8\n")
+                f.write(f"#define {char}_height {total_height}\n")
+                f.write(f"static char {char}_bits_height_{height}[] = {{\n")
+                
+                # Write each byte in hexadecimal format, 12 bytes per line for readability
+                for i, byte in enumerate(xbm_data):
+                    f.write(f"  0x{byte:02X}")
+                    if i < len(xbm_data) - 1:
+                        f.write(",")
+                    if (i + 1) % 12 == 0:
+                        f.write("\n")
+                    else:
+                        f.write(" ")
+                f.write("\n};\n\n")
+
+    print(f"Combined XBM file saved as {output_file}")
+
+# Example usage
+ttf_path = "path_to_your_font.ttf"
+char_list = ['A', 'B', 'C']  # Characters you want to process
+ttf_to_xbm_combined(ttf_path, char_list, forced_height_1=14, forced_height_2=13, max_width=7, 
+                    output_file="output_combined.xbm", padding_top=2, bottom_padding_1=1, bottom_padding_2=3)
