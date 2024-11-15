@@ -77,33 +77,38 @@ def generate_xbm_data(ttf_path, char_list, forced_height_1, forced_height_2, max
             # Store the data in all_xbm_data
             if char not in all_xbm_data:
                 all_xbm_data[char] = {}
-            all_xbm_data[char][variant_label] = xbm_data
+            all_xbm_data[char][f"{variant_label}_{height}"] = xbm_data
 
             print(f"Generated data for character '{char}', Height: {height}, Variant: {variant_label}, Data Length: {len(xbm_data)}")
 
     return all_xbm_data
 
-def write_xbm(all_xbm_data, output_file):
-    """ Writes all character data to a combined XBM file. """
+def write_xbm(all_xbm_data, output_file, char_list):
+    """ Writes all character data to a combined XBM file in the specified order. """
     with open(output_file, "w", encoding="utf-8") as f:
         f.write("# Combined XBM file with dual heights and strikeout versions, grouped by type\n\n")
 
-        for char, variants in all_xbm_data.items():
-            for variant_label, xbm_data in variants.items():
-                f.write(f"/* Character: '{char}', Variant: {variant_label} */\n")
-                f.write(f"#define {char}_width 8\n")
-                f.write(f"#define {char}_height {len(xbm_data)}\n")
-                f.write(f"static char {char}_{variant_label}_bits[] = {{\n")
-                
-                for i, byte in enumerate(xbm_data):
-                    f.write(f" 0x{byte:02X}")
-                    if i < len(xbm_data) - 1:
-                        f.write(",")
-                    if (i + 1) % 12 == 0:
-                        f.write("\n")
-                    else:
-                        f.write(" ")
-                f.write("\n};\n\n")
+        # Write characters in the order: 13 Normal, 13 Strikeout, 14 Normal, 14 Strikeout
+        for label in ["normal_13", "strikeout_13", "normal_14", "strikeout_14"]:
+            for char in char_list:
+                if label in all_xbm_data[char]:
+                    xbm_data = all_xbm_data[char][label]
+                    height = 13 if "13" in label else 14
+
+                    f.write(f"/* Character: '{char}', Height: {height}, Variant: {label.split('_')[0]} */\n")
+                    f.write(f"#define {char}_width 8\n")
+                    f.write(f"#define {char}_height {len(xbm_data)}\n")
+                    f.write(f"static char {char}_{label}_bits[] = {{\n")
+                    
+                    for i, byte in enumerate(xbm_data):
+                        f.write(f" 0x{byte:02X}")
+                        if i < len(xbm_data) - 1:
+                            f.write(",")
+                        if (i + 1) % 12 == 0:
+                            f.write("\n")
+                        else:
+                            f.write(" ")
+                    f.write("\n};\n\n")
 
     print(f"XBM file saved as {output_file}")
 
@@ -117,5 +122,5 @@ output_file = "combined.xbm"
 all_xbm_data = generate_xbm_data(ttf_path, char_list, forced_height_1=14, forced_height_2=13, max_width=7,
                                  padding_top=1, bottom_padding_1=1, bottom_padding_2=2)
 
-# Write XBM
-write_xbm(all_xbm_data, output_file)
+# Write XBM with the specified order: 13 Normal, 13 Strikeout, 14 Normal, 14 Strikeout
+write_xbm(all_xbm_data, output_file, char_list)
