@@ -1,3 +1,48 @@
+import os
+
+def write_mif(char_list, all_xbm_data, output_dir, height, depth=4096, width=8):
+    """
+    Creates a MIF file for a specified character height.
+    The first half of the file contains non-strikeout characters, and the second half contains strikeout characters.
+    """
+    file_name = os.path.join(output_dir, f"FontRom_{height}.mif")
+    with open(file_name, "w", encoding="utf-8") as f:
+        # Write the MIF header
+        f.write(f"DEPTH = {depth};\n")
+        f.write(f"WIDTH = {width};\n")
+        f.write(f"ADDRESS_RADIX = HEX;\n")
+        f.write(f"DATA_RADIX = HEX;\n")
+        f.write("CONTENT BEGIN\n")
+
+        current_address = 0x000
+        strikeout_start = 0x800
+
+        # Part 1: Write non-strikeout character data within the first 2048 addresses
+        for char in char_list:
+            if char not in all_xbm_data or len(all_xbm_data[char]) != height * 2:
+                continue  # Skip characters that do not match the height or are missing
+
+            xbm_data = all_xbm_data[char]["normal"][:16]  # Limit to 16 bytes for non-strikeout data
+            f.write(f"\n-- Character: '{char}' at Address {current_address:03X} --\n")
+            for i, byte in enumerate(xbm_data):
+                f.write(f"{current_address + i:03X} : {reverse_bits(byte):02X};\n")
+            current_address += 16
+
+        # Part 2: Write strikeout character data within the next 2048 addresses (starting at 0x800)
+        for char in char_list:
+            if char not in all_xbm_data or len(all_xbm_data[char]) != height * 2:
+                continue
+
+            strikeout_data = all_xbm_data[char]["strikeout"][:16]  # Limit to 16 bytes for strikeout data
+            f.write(f"\n-- Strikeout Character: '{char}' at Address {strikeout_start:03X} --\n")
+            for i, byte in enumerate(strikeout_data):
+                f.write(f"{strikeout_start + i:03X} : {reverse_bits(byte):02X};\n")
+            strikeout_start += 16
+
+        f.write("END;\n")
+
+    print(f"MIF file saved as {file_name}")
+
 def write_binary(char_list, all_xbm_data, output_dir, short_height, normal_height):
     """
     Creates a single binary file combining data from two MIF files for short and normal heights.
@@ -22,14 +67,11 @@ def write_binary(char_list, all_xbm_data, output_dir, short_height, normal_heigh
     for start_addr, end_addr, height, variant in sections:
         current_address = start_addr
         for char in char_list:
-            sanitized_char = filename(char)
-            if sanitized_char not in all_xbm_data or len(all_xbm_data[sanitized_char]) != height * 2:
+            if char not in all_xbm_data or len(all_xbm_data[char]) != height * 2:
                 continue
 
-            # Get the data and apply strikeout if needed
-            xbm_data = all_xbm_data[sanitized_char][:16]
-            if variant == "strikeout":
-                xbm_data = strikeout(xbm_data)
+            # Get the data directly from all_xbm_data
+            xbm_data = all_xbm_data[char][variant][:16]  # Limit to 16 bytes for each variant
 
             # Write data to the binary array
             for i, byte in enumerate(xbm_data):
@@ -56,8 +98,10 @@ def write_binary(char_list, all_xbm_data, output_dir, short_height, normal_heigh
 # Example usage
 output_dir = "path_to_output_directory"
 char_list = [chr(i) for i in range(0x20, 0x7F)]  # Include printable ASCII characters
-all_xbm_data = {}  # This should be populated with your character data as dictionaries
+all_xbm_data = {}  # This should be populated by `ttf_to_xbm_combined` with both "normal" and "strikeout" data
 short_height = 13
 normal_height = 14
 
+write_mif(char_list, all_xbm_data, output_dir, short_height)
+write_mif(char_list, all_xbm_data, output_dir, normal_height)
 write_binary(char_list, all_xbm_data, output_dir, short_height, normal_height)
