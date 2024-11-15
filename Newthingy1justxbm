@@ -1,4 +1,4 @@
-def bitmap_to_xbm_fixed_height(bitmap, forced_height, max_width=7, threshold_value=40, output_file="output.xbm"):
+def bitmap_to_xbm_fixed_height(bitmap, forced_height, max_width=7, threshold_value=40):
     # Convert the input bitmap to a numpy array
     bitmap_array = np.array(bitmap.buffer, dtype=np.uint8).reshape(bitmap.rows, bitmap.width)
     
@@ -30,37 +30,15 @@ def bitmap_to_xbm_fixed_height(bitmap, forced_height, max_width=7, threshold_val
         
         # Append the byte to XBM data for each row
         xbm_data.append(byte_value)
-    
-    # Write the XBM file
-    with open(output_file, "w") as f:
-        # XBM file header
-        f.write(f"#define {output_file.split('.')[0]}_width 8\n")
-        f.write(f"#define {output_file.split('.')[0]}_height {forced_height}\n")
-        f.write(f"static char {output_file.split('.')[0]}_bits[] = {{\n")
-        
-        # Write each byte in hexadecimal format, 12 bytes per line for readability
-        for i, byte in enumerate(xbm_data):
-            f.write(f"  0x{byte:02X}")
-            if i < len(xbm_data) - 1:
-                f.write(",")
-            if (i + 1) % 12 == 0:
-                f.write("\n")
-            else:
-                f.write(" ")
-        f.write("\n};\n")
 
-    print(f"XBM file saved as {output_file}")
-
+    # Return the XBM data, which is an 8-bit width, forced height format
     return xbm_data, 8, forced_height
 
 
-
-# Example: Generate an XBM file with a forced height of 14 and max width of 7
-xbm_data, width, height = bitmap_to_xbm_fixed_height(bitmap, forced_height=14, max_width=7, output_file="character.xbm")
+# Example: Using forced height of 14, maximum width of 7 bits
+xbm_data, width, height = bitmap_to_xbm_fixed_height(bitmap, forced_height=14, max_width=7)
 
 # Output results for verification
 print("XBM Data:", xbm_data)
 print("Width:", width)    # Should be 8 bits
 print("Height:", height)  # Forced height specified
-
-
