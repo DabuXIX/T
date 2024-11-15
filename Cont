@@ -17,29 +17,42 @@ def ttf_to_xbm_combined(ttf_path, char_list, forced_height_1, forced_height_2, m
                         output_file="output_combined.xbm", padding_top=0, bottom_padding_1=0, bottom_padding_2=0):
     """
     Converts a list of characters from a TTF file to XBM format with dual heights and strikeout options. 
-    The XBM file contains each character's regular and strikeout data for both heights in sequence.
+    The XBM file contains each character's normal and strikeout data for both heights, grouped by type.
     """
     # Load the font with an arbitrary size; we'll scale each character to the forced heights
     font_size = max(forced_height_1, forced_height_2) * 2
     font = ImageFont.truetype(ttf_path, font_size)
 
+    # Ensure space character is included even if it renders empty
+    if ' ' not in char_list:
+        char_list.insert(0, ' ')
+    
     # Prepare the output file with UTF-8 encoding to handle Unicode characters
     with open(output_file, "w", encoding="utf-8") as f:
         # Write the initial XBM file header
-        f.write("# Combined XBM file with dual heights and strikeout versions\n\n")
+        f.write("# Combined XBM file with dual heights and strikeout versions, grouped by type\n\n")
 
-        for char in char_list:
-            # Skip space if empty but ensure `0x20` is included
-            if char == ' ':
-                char = chr(0x20)  # Ensure space character is processed as well
-
-            for height, bottom_padding in [(forced_height_1, bottom_padding_1), (forced_height_2, bottom_padding_2)]:
+        # Define order of outputs to achieve desired structure
+        output_configurations = [
+            (forced_height_1, bottom_padding_1, "normal"),
+            (forced_height_1, bottom_padding_1, "strikeout"),
+            (forced_height_2, bottom_padding_2, "normal"),
+            (forced_height_2, bottom_padding_2, "strikeout"),
+        ]
+        
+        for height, bottom_padding, variant_label in output_configurations:
+            # Process each character in the specified configuration
+            for char in char_list:
                 # Render character
                 (width, actual_height), (offset_x, offset_y) = font.font.getsize(char)
                 
                 if actual_height == 0 or width == 0:
-                    print(f"Warning: Character '{char}' rendered with zero height or width. Skipping.")
-                    continue
+                    # Ensure space character (`0x20`) is printed as an empty block if rendered blank
+                    if char == ' ':
+                        width, actual_height = max_width, height  # Set default width/height for space
+                    else:
+                        print(f"Warning: Character '{char}' rendered with zero height or width. Skipping.")
+                        continue
                 
                 image = Image.new('L', (width, actual_height), 0)
                 draw = ImageDraw.Draw(image)
@@ -59,30 +72,34 @@ def ttf_to_xbm_combined(ttf_path, char_list, forced_height_1, forced_height_2, m
 
                 padded_array[start_row:start_row + height, start_col:start_col + new_width] = binary_array[:, :new_width]
 
-                # Regular and strikeout data generation
-                for variant, variant_label in [(padded_array, "normal"), (strikeout_data(padded_array.copy(), new_width), "strikeout")]:
-                    xbm_data = []
-                    for row in variant:
-                        byte_value = 0
-                        for col in range(8):
-                            if row[col] > 0:
-                                byte_value |= (1 << (7 - col))
-                        xbm_data.append(reverse_bits(byte_value))  # Apply reverse_bits here
+                # Apply strikeout if the variant is "strikeout"
+                if variant_label == "strikeout":
+                    padded_array = strikeout_data(padded_array.copy(), new_width)
 
-                    f.write(f"/* Character: '{char}', Height: {total_height}, Variant: {variant_label} */\n")
-                    f.write(f"#define {char}_width 8\n")
-                    f.write(f"#define {char}_height {total_height}\n")
-                    f.write(f"static char {char}_bits_height_{height}_{variant_label}[] = {{\n")
-                    
-                    for i, byte in enumerate(xbm_data):
-                        f.write(f"  0x{byte:02X}")
-                        if i < len(xbm_data) - 1:
-                            f.write(",")
-                        if (i + 1) % 12 == 0:
-                            f.write("\n")
-                        else:
-                            f.write(" ")
-                    f.write("\n};\n\n")
+                # Initialize the XBM data list and convert each row to byte values
+                xbm_data = []
+                for row in padded_array:
+                    byte_value = 0
+                    for col in range(8):
+                        if row[col] > 0:
+                            byte_value |= (1 << (7 - col))
+                    xbm_data.append(reverse_bits(byte_value))
+
+                # Write the data for each character with comments for height, variant, and character
+                f.write(f"/* Character: '{char}', Height: {total_height}, Variant: {variant_label} */\n")
+                f.write(f"#define {char}_width 8\n")
+                f.write(f"#define {char}_height {total_height}\n")
+                f.write(f"static char {char}_bits_height_{height}_{variant_label}[] = {{\n")
+                
+                for i, byte in enumerate(xbm_data):
+                    f.write(f"  0x{byte:02X}")
+                    if i < len(xbm_data) - 1:
+                        f.write(",")
+                    if (i + 1) % 12 == 0:
+                        f.write("\n")
+                    else:
+                        f.write(" ")
+                f.write("\n};\n\n")
 
     print(f"Combined XBM file saved as {output_file}")
 
