@@ -24,8 +24,8 @@ def ttf_to_xbm_combined(ttf_path, char_list, forced_height_1, forced_height_2, m
     font_size = max(forced_height_1, forced_height_2) * 2  # Starting font size; we'll resize to each forced height
     font = ImageFont.truetype(ttf_path, font_size)
 
-    # Prepare the output file
-    with open(output_file, "w") as f:
+    # Prepare the output file with UTF-8 encoding to handle Unicode characters
+    with open(output_file, "w", encoding="utf-8") as f:
         # Write the initial XBM file header
         f.write("# Combined XBM file with dual heights\n\n")
         
@@ -96,6 +96,6 @@ def ttf_to_xbm_combined(ttf_path, char_list, forced_height_1, forced_height_2, m
 
 # Example usage
 ttf_path = "path_to_your_font.ttf"
-char_list = ['A', 'B', 'C']  # Characters you want to process
+char_list = ['A', 'B', 'C', '→', '↓', '↑', '↔']  # Characters you want to process, including Unicode arrows
 ttf_to_xbm_combined(ttf_path, char_list, forced_height_1=14, forced_height_2=13, max_width=7, 
                     output_file="combined.xbm", padding_top=1, bottom_padding_1=1, bottom_padding_2=2)
