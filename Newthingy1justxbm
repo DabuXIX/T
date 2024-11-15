@@ -1,12 +1,40 @@
-def bitmap_to_xbm_fixed_height(bitmap, forced_height, max_width=7, threshold_value=40):
-    # Convert the input bitmap to a numpy array
-    bitmap_array = np.array(bitmap.buffer, dtype=np.uint8).reshape(bitmap.rows, bitmap.width)
+from PIL import Image
+
+# Load your bitmap as a grayscale image
+bitmap = Image.open("path_to_your_bitmap.png").convert("L")
+
+# Call the function with the forced height of 14 and max width of 7, saving to an XBM file
+xbm_data, width, height = bitmap_to_xbm_fixed_height(bitmap, forced_height=14, max_width=7, output_file_path="character.xbm")
+
+# Output results for verification
+print("XBM Data:", xbm_data)
+print("Width:", width)    # Should be 8 bits
+print("Height:", height)  # Forced height specified
+
+
+from PIL import Image
+import numpy as np
+
+def bitmap_to_xbm_fixed_height(bitmap, forced_height, max_width=7, threshold_value=128, output_file_path="output.xbm"):
+    """
+    Converts a PIL Image bitmap to XBM format with a forced height and a max width of 7 bits.
+    The result is padded to an 8-bit width for compatibility with the XBM format.
+    
+    Parameters:
+    - bitmap: PIL Image object in grayscale format (mode 'L').
+    - forced_height: The desired fixed height for the output.
+    - max_width: The maximum width for the character, capped at 7 bits.
+    - threshold_value: Pixel intensity threshold for binarization.
+    - output_file_path: Path to save the XBM file.
+    """
+    # Convert the bitmap to grayscale if it isn’t already
+    if bitmap.mode != 'L':
+        bitmap = bitmap.convert('L')
     
     # Resize the bitmap to the forced height while maintaining aspect ratio for width
-    img = Image.fromarray(bitmap_array)
-    aspect_ratio = img.width / img.height
+    aspect_ratio = bitmap.width / bitmap.height
     new_width = min(int(forced_height * aspect_ratio), max_width)  # Calculate width with max constraint
-    img_resized = img.resize((new_width, forced_height), Image.Resampling.LANCZOS)
+    img_resized = bitmap.resize((new_width, forced_height), Image.Resampling.LANCZOS)
     
     # Convert resized image to binary (black-and-white) array based on the threshold
     resized_array = np.array(img_resized)
@@ -30,15 +58,25 @@ def bitmap_to_xbm_fixed_height(bitmap, forced_height, max_width=7, threshold_val
         
         # Append the byte to XBM data for each row
         xbm_data.append(byte_value)
+    
+    # Write the XBM file
+    with open(output_file_path, "w") as f:
+        # XBM file header
+        f.write(f"#define {output_file_path.split('/')[-1].split('.')[0]}_width 8\n")
+        f.write(f"#define {output_file_path.split('/')[-1].split('.')[0]}_height {forced_height}\n")
+        f.write(f"static char {output_file_path.split('/')[-1].split('.')[0]}_bits[] = {{\n")
+        
+        # Write each byte in hexadecimal format, 12 bytes per line for readability
+        for i, byte in enumerate(xbm_data):
+            f.write(f"  0x{byte:02X}")
+            if i < len(xbm_data) - 1:
+                f.write(",")
+            if (i + 1) % 12 == 0:
+                f.write("\n")
+            else:
+                f.write(" ")
+        f.write("\n};\n")
 
-    # Return the XBM data, which is an 8-bit width, forced height format
+    print(f"XBM file saved as {output_file_path}")
+
     return xbm_data, 8, forced_height
-
-
-# Example: Using forced height of 14, maximum width of 7 bits
-xbm_data, width, height = bitmap_to_xbm_fixed_height(bitmap, forced_height=14, max_width=7)
-
-# Output results for verification
-print("XBM Data:", xbm_data)
-print("Width:", width)    # Should be 8 bits
-print("Height:", height)  # Forced height specified
