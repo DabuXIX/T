@@ -1,0 +1,66 @@
+def bitmap_to_xbm_fixed_height(bitmap, forced_height, max_width=7, threshold_value=40, output_file="output.xbm"):
+    # Convert the input bitmap to a numpy array
+    bitmap_array = np.array(bitmap.buffer, dtype=np.uint8).reshape(bitmap.rows, bitmap.width)
+    
+    # Resize the bitmap to the forced height while maintaining aspect ratio for width
+    img = Image.fromarray(bitmap_array)
+    aspect_ratio = img.width / img.height
+    new_width = min(int(forced_height * aspect_ratio), max_width)  # Calculate width with max constraint
+    img_resized = img.resize((new_width, forced_height), Image.Resampling.LANCZOS)
+    
+    # Convert resized image to binary (black-and-white) array based on the threshold
+    resized_array = np.array(img_resized)
+    binary_array = (resized_array > threshold_value).astype(np.uint8)
+    
+    # Create the padded array with an 8-bit width, even if the actual character width is less
+    padded_array = np.zeros((forced_height, 8), dtype=np.uint8)
+    start_col = (8 - new_width) // 2  # Center-align character in 8-bit width
+    
+    # Place the binary character bitmap in the center of the 8-bit padded array
+    padded_array[:, start_col:start_col + new_width] = binary_array[:, :new_width]
+    
+    # Initialize the XBM data list and convert each row to byte values
+    xbm_data = []
+    for row in padded_array:
+        byte_value = 0
+        for col in range(8):
+            # Set bit if pixel is on (value > 0)
+            if row[col] > 0:
+                byte_value |= (1 << (7 - col))
+        
+        # Append the byte to XBM data for each row
+        xbm_data.append(byte_value)
+    
+    # Write the XBM file
+    with open(output_file, "w") as f:
+        # XBM file header
+        f.write(f"#define {output_file.split('.')[0]}_width 8\n")
+        f.write(f"#define {output_file.split('.')[0]}_height {forced_height}\n")
+        f.write(f"static char {output_file.split('.')[0]}_bits[] = {{\n")
+        
+        # Write each byte in hexadecimal format, 12 bytes per line for readability
+        for i, byte in enumerate(xbm_data):
+            f.write(f"  0x{byte:02X}")
+            if i < len(xbm_data) - 1:
+                f.write(",")
+            if (i + 1) % 12 == 0:
+                f.write("\n")
+            else:
+                f.write(" ")
+        f.write("\n};\n")
+
+    print(f"XBM file saved as {output_file}")
+
+    return xbm_data, 8, forced_height
+
+
+
+# Example: Generate an XBM file with a forced height of 14 and max width of 7
+xbm_data, width, height = bitmap_to_xbm_fixed_height(bitmap, forced_height=14, max_width=7, output_file="character.xbm")
+
+# Output results for verification
+print("XBM Data:", xbm_data)
+print("Width:", width)    # Should be 8 bits
+print("Height:", height)  # Forced height specified
+
+
