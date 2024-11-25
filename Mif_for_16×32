@@ -1,29 +1,51 @@
-def write_mif(char_list, all_xbm_data, output_dir, default_height=32, depth=8192, width=16):
+def write_mif(char_list, all_xbm_data, output_dir, default_height=32, depth=8192, width=32):
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
 
     file_name = os.path.join(output_dir, f"FontRom_{default_height}.mif")
     with open(file_name, "w", encoding="utf-8") as f:
         f.write(f"DEPTH = {depth};\n")
-        f.write(f"WIDTH = {width};\n")
+        f.write(f"WIDTH = {width};\n")  # 32 bits (4 bytes)
         f.write(f"ADDRESS_RADIX = HEX;\n")
         f.write(f"DATA_RADIX = HEX;\n")
         f.write(f"CONTENT BEGIN\n")
 
         current_address = 0x0000
 
-        # Part 1: Write non-strikeout character data
+        # Non-strikeout characters
         for char in char_list:
             sanitized_char = filename(char)
-            xbm_data = all_xbm_data.get(sanitized_char, [0] * 64)  # Adjusted to 64 bytes (16x32)
+            xbm_data = all_xbm_data.get(sanitized_char, [0] * 128)  # 128 bytes (4 bytes × 32 rows)
 
             f.write(f"\n-- Character: '{char}' at Address {current_address:03X}\n")
-            for row in range(32):  # Iterate over 32 rows
-                row_data = xbm_data[row * 2:(row + 1) * 2]  # 16-bit (2 bytes) per row
+            for row in range(32):  # 32 rows
+                row_data = xbm_data[row * 4:(row + 1) * 4]  # 4 bytes per row
                 reversed_data = [reverse_bits(byte) for byte in row_data]
-                for byte in reversed_data:
-                    f.write(f"{current_address:03X} : {byte:02X};\n")
-                    current_address += 1
+                f.write(f"{current_address:03X} : ")
+                f.write("".join(f"{byte:02X}" for byte in reversed_data))
+                f.write(";\n")
+                current_address += 1  # Move to the next address
+
+        # Strikeout Section
+        strikeout_start = 0x800
+        for char in char_list:
+            sanitized_char = filename(char)
+            xbm_data = all_xbm_data.get(sanitized_char, [0] * 128)  # 128 bytes (4 bytes × 32 rows)
+
+            # Add a strike-through line in the middle
+            strikeout_data = xbm_data[:]
+            middle_row = 16
+            for col in range(32):  # Add strike line across 32 columns
+                strikeout_data[middle_row * 4 + col // 8] |= (1 << (7 - (col % 8)))
+
+            f.write(f"\n-- Strikeout Character: '{char}' at Address {strikeout_start:03X}\n")
+            for row in range(32):  # 32 rows
+                row_data = strikeout_data[row * 4:(row + 1) * 4]  # 4 bytes per row
+                reversed_data = [reverse_bits(byte) for byte in row_data]
+                f.write(f"{strikeout_start:03X} : ")
+                f.write("".join(f"{byte:02X}" for byte in reversed_data))
+                f.write(";\n")
+                strikeout_start += 1  # Move to the next address
 
         f.write("END;\n")
     print(f"MIF file saved as {file_name}.")
