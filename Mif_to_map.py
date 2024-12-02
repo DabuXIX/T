@@ -1,11 +1,11 @@
-def print_character_from_mif(mif_file, char_width=16, char_height=32, start_address=None):
+def print_character_from_mif(mif_file, char_width=8, char_height=32, start_address=None):
     """
-    Parse a MIF file and print a specific 16x32 character as a bitmap to the terminal.
+    Parse a MIF file and print a specific character as a bitmap to the terminal.
 
     Args:
         mif_file (str): Path to the MIF file.
-        char_width (int): Width of the character in bits (16 for 16x32 resolution).
-        char_height (int): Height of the character in rows (32 for 16x32 resolution).
+        char_width (int): Width of the character in bits (8 for single-byte rows).
+        char_height (int): Height of the character in rows (e.g., 32 rows).
         start_address (str): Hex address (e.g., '0000') of the character to display.
     """
     def hex_to_binary(hex_value, width):
@@ -49,16 +49,23 @@ def print_character_from_mif(mif_file, char_width=16, char_height=32, start_addr
     current_address = int(start_address, 16)
     current_bitmap = []
 
-    for _ in range(char_height):
+    while len(current_bitmap) < char_height:
         address = f"{current_address:04X}"  # Format as 4-digit hex
         if address in memory_map:
             hex_value = memory_map[address]
-            binary_row = hex_to_binary(hex_value, char_width)  # Convert to binary row
-            current_bitmap.append(binary_row)
+            # Split the hex value into two bytes
+            first_byte, second_byte = hex_value[:2], hex_value[2:]
+            # Convert each byte to a binary row
+            binary_row_1 = hex_to_binary(first_byte, char_width)
+            binary_row_2 = hex_to_binary(second_byte, char_width)
+            current_bitmap.extend([binary_row_1, binary_row_2])  # Add rows to bitmap
         else:
             print(f"Warning: Address {address} not found in the file.")
-            current_bitmap.append("0" * char_width)  # Add an empty row
+            current_bitmap.extend(["0" * char_width, "0" * char_width])  # Add empty rows
         current_address += 1
+
+    # Trim the bitmap to the specified height
+    current_bitmap = current_bitmap[:char_height]
 
     # Print the character bitmap
     print(f"=== Character at Address {start_address.upper()} ===")
