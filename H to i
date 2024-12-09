@@ -2,14 +2,18 @@ def generate_xbm_data(ttf_path, char_list, forced_height, max_width, canvas_widt
                       threshold_value=128, padding_top=0, padding_bottom=0):
     """
     Generates XBM data for characters, ensuring proper padding and alignment.
-    Uses the width of 'H' as a reference for the width of 'I'.
+    Handles punctuation scaling, left alignment for 32x64, and dynamic width adjustment for narrow characters.
     """
     font_size = forced_height * 2
     font = ImageFont.truetype(ttf_path, font_size)
     all_xbm_data = {}
 
-    # Measure "H" to use as a reference for "I"
-    h_width, h_height = font.font.getsize("H")[0:2]
+    # Measure "H" to use as a reference for narrow characters like "I"
+    h_width = font.getsize("H")[0]
+
+    # Define punctuation and scaling
+    punctuation_set = {',', '.'}
+    punctuation_scale = 0.25  # Scale punctuation to 25% of regular character height
 
     for char in char_list:
         try:
@@ -26,13 +30,17 @@ def generate_xbm_data(ttf_path, char_list, forced_height, max_width, canvas_widt
             draw = ImageDraw.Draw(image)
             draw.text((-offset_x, -offset_y), char, font=font, fill=255)
 
-            # Adjust width of "I" based on "H"
-            if char == "I":
-                image = image.crop((0, 0, h_width, height))
+            # Handle special cases
+            if char in punctuation_set:
+                # Adjust punctuation height
+                target_height = int(forced_height * punctuation_scale)
+            elif char == "I":
+                # Adjust "I" width to match "H"
                 width = h_width
-
-            # Determine target height
-            target_height = forced_height
+                image = image.crop((0, 0, width, height))
+                target_height = forced_height
+            else:
+                target_height = forced_height
 
             # Scale character to fit max dimensions
             aspect_ratio = width / height
@@ -45,15 +53,21 @@ def generate_xbm_data(ttf_path, char_list, forced_height, max_width, canvas_widt
             # Create padded array
             padded_array = np.zeros((canvas_height, canvas_width), dtype=np.uint8)
 
-            # Center horizontally and apply vertical padding
-            horizontal_padding = (canvas_width - scaled_width) // 2
+            if canvas_width == 32 and canvas_height == 64:
+                # Left-align for 32x64
+                horizontal_padding = 0
+            else:
+                # Center horizontally for other sizes
+                horizontal_padding = (canvas_width - scaled_width) // 2
+
+            # Add top padding
             vertical_start = padding_top
 
             # Place character in padded array
             padded_array[vertical_start:vertical_start + target_height,
                          horizontal_padding:horizontal_padding + scaled_width] = binary_array
 
-            # Convert each row to multiple bytes
+            # Convert each row to bytes
             xbm_data = []
             for row in padded_array:
                 row_bytes = []
@@ -63,8 +77,7 @@ def generate_xbm_data(ttf_path, char_list, forced_height, max_width, canvas_widt
                         col = byte_index + bit_index
                         if col < canvas_width and row[col]:
                             byte |= (1 << (7 - bit_index))
-                    # Reverse bits for compatibility
-                    row_bytes.append(reverse_bits(byte))
+                    row_bytes.append(reverse_bits(byte))  # Reverse bits for compatibility
                 xbm_data.append(row_bytes)
 
             all_xbm_data[char] = xbm_data
