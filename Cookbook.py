@@ -50,9 +50,11 @@ def generate_xbm_data(ttf_path, char_list, forced_height, max_width, canvas_widt
             padded_array = np.zeros((canvas_height, canvas_width), dtype=np.uint8)
 
             if canvas_width == 32 and canvas_height == 64:
-                vertical_offset = (grid_height - binary_array.shape[0]) // 2
-                horizontal_offset = (grid_width - binary_array.shape[1]) // 2
-                padded_array[vertical_offset:grid_height, horizontal_offset:grid_width] = binary_array
+                vertical_offset = max((grid_height - binary_array.shape[0]) // 2, 0)
+                horizontal_offset = max((grid_width - binary_array.shape[1]) // 2, 0)
+                # Ensure binary_array fits within the grid
+                padded_array[vertical_offset:vertical_offset + binary_array.shape[0],
+                             horizontal_offset:horizontal_offset + binary_array.shape[1]] = binary_array
             else:
                 vertical_start = padding_top
                 horizontal_padding = (canvas_width - scaled_width) // 2
@@ -77,41 +79,3 @@ def generate_xbm_data(ttf_path, char_list, forced_height, max_width, canvas_widt
             print(f"Warning: Unable to process character '{char}'. Reason: {e}")
 
     return all_xbm_data
-
-                        def write_xbm(all_xbm_data, output_file, canvas_width, canvas_height):
-    """
-    Writes XBM data to a file, including both normal and strikeout versions.
-    """
-    def add_strikeout(xbm_data, canvas_width, canvas_height):
-        strikeout_data = []
-        middle_row = canvas_height // 2
-        for i, row_bytes in enumerate(xbm_data):
-            new_row = row_bytes[:]
-            if i == middle_row:
-                new_row = [0xFF] * len(row_bytes)  # Full strikeout on middle row
-            strikeout_data.append(new_row)
-        return strikeout_data
-
-    with open(output_file, "w", encoding="utf-8") as f:
-        f.write("# XBM File\n\n")
-
-        for char, xbm_data in all_xbm_data.items():
-            strikeout_data = add_strikeout(xbm_data, canvas_width, canvas_height)
-
-            # Normal character
-            f.write(f"/* Character: '{char}' */\n")
-            f.write(f"#define {char}_width {canvas_width}\n")
-            f.write(f"#define {char}_height {canvas_height}\n")
-            f.write(f"static char {char}_bits[] = {{\n")
-            for row_bytes in xbm_data:
-                f.write("  " + ", ".join(f"0x{byte:02X}" for byte in row_bytes) + ",\n")
-            f.write("};\n\n")
-
-            # Strikeout character
-            f.write(f"/* Strikeout Character: '{char}' */\n")
-            f.write(f"static char {char}_strikeout_bits[] = {{\n")
-            for row_bytes in strikeout_data:
-                f.write("  " + ", ".join(f"0x{byte:02X}" for byte in row_bytes) + ",\n")
-            f.write("};\n\n")
-
-    print(f"XBM file saved as {output_file}")
