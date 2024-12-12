@@ -34,6 +34,12 @@ def split_mif_32x64_to_16x64(input_file, output_dir):
         elif not in_content_section:
             header.append(line)
         elif in_content_section:
+            # Skip comment lines
+            if stripped.startswith("--"):
+                low_content.append(line)
+                high_content.append(line)
+                continue
+
             if ":" in stripped:
                 address, data = stripped.split(":")
                 address = address.strip()
